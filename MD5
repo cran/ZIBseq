@@ -1,0 +1,11 @@
+43fe9dc162e1650c9b8f2fda6360d1c5 *DESCRIPTION
+a661fce51f1649b34e0d6c62c744e19c *NAMESPACE
+95e32f8a9214fb108b586b6a8e35a4fb *R/ZIBseq-internal.R
+40d7814828f4b880a2279ea35c53639c *R/ZIBseq.R
+9c435bb8b9706f5a2c968ec68f9b3b49 *R/calc_qvalues.R
+5904026b02f13d339a21c2629c52a5de *build/partial.rdb
+08884983da566560641a20ded8259cd5 *data/testdata.RData
+d67807d3a91335100816c7ac14597901 *man/ZIBseq-package.Rd
+4e90c59bdc9db1702fb67929d99b45f8 *man/ZIBseq.Rd
+a7a3b866ab27e847db809ef84b3bd257 *man/calc_qvalues.Rd
+273103547278d5f3381b0b2504ddedd8 *man/testdata.Rd
