@@ -1,49 +1,106 @@
+require(gamlss)
+library(phyloseq)
+library(metagenomeSeq)
+
 ZIBseq <-
-function(data,outcome,transform=F,alpha=0.05) {
-
-
-genodata=data     ## data is a matrix with size n*p, where n is the samoke size and p is the number of features
-
-## must contain the column names
-Y=outcome        ## Y is a vector with length n
-
-useF=which(colSums(genodata)>2*dim(genodata)[1])    ## remove features with totle counts less than 2 times sample size
-
-X=genodata[,useF]
-
-ST=rowSums(X)   ## calculation the sample total
-
-P=dim(X)[2]
-
-
-##-------------------------------------------------------------------------------------
-
-
-beta=matrix(data=NA,P,2)
-
-for (i in 1:P)
-
-{x.prop=X[,i]/ST
+  function(data,meta,Y,Z,transform=T,alpha=0.05) {
     
-    if (transform==T)
+    # data: Dataframe, Sample by feature table
+    # meta: Dataframe, Meta data or clinical variables for the samples including label information
+    # Y: String, label name
+    # Z: Srting (or string vector for multiple variables), clinical variable(s) to be used
+    # transformation: Boolean, true for square root transformation
+    # alpha: Float, significance level 
     
-    {x.prop=sqrt(x.prop) }
+    ## Data processing
+
+    # Handling numerical labels
+    meta[,Y] = as.factor(meta[,Y])
     
+    # Relative abundance transformation for beta distribution
+    RA.data = t(apply(data,1,function(X){
+      X/sum(X)
+    }))
     
-    bereg=gamlss(x.prop~Y,family=BEZI(sigma.link="identity"),trace=FALSE,control = gamlss.control(n.cyc = 100))
+    # Square root transformation
+    if(transform==T){
+      RA.data = sqrt(RA.data)
+    }
     
-    out=summary(bereg)
+    # Dataframe for gamlss function
+    df = data.frame(cbind(RA.data), meta)
     
-    beta[i,]=out[2,c(1,4)]}  ## get all the coefficients and P values in beta regression
+    # Feature names for gamlss function
+    Xs = colnames(RA.data)
+    
+    ## Zero-inflated beta regression
+    p_vec = c() # Vector with p-values for each feature
+    for(i in Xs){
+      equat = as.formula(paste0(i,"~",paste0(c(Y,Z), collapse = " + ")))
+      p.value <- tryCatch({
+        bereg=gamlss(formula = equat,family=BEZI(sigma.link="identity"),trace=FALSE,control = gamlss.control(n.cyc = 100), data = df)
+        out=summary(bereg)
+        out[2,4] # p-value
+      }, warning=function(w) {
+        message("handling warning: ", conditionMessage(w))
+        NA
+      })
+                
+      p_vec <- c(p_vec, p.value)
+    }
+    return(p_vec)
+  }
 
-pvalues=beta[,2]
-
-qvalues=calc_qvalues(pvalues)
-
-sig=which(qvalues<alpha)
-
-sigFeature=colnames(X)[sig]
-
-    list(sigFeature=sigFeature,useFeature=P,qvalues=qvalues, pvalues=pvalues) }
+ZIBseq.multinomial <-
+  function(data,meta,Y,Z,transform=T,alpha=0.05) {
+    
+    # data: Dataframe, Sample by feature table
+    # meta: Dataframe, Meta data or clinical variables for the samples including label information
+    # Y: String, label name
+    # Z: Srting (or string vector for multiple variables), clinical variable(s) to be used
+    # transformation: Boolean, true for square root transformation
+    # alpha: Float, significance level 
+    
+    ## Data processing  
+    # Handling numerical labels
+    meta[,Y] = as.factor(meta[,Y])
+    
+    # Relative abundance transformation for beta distribution
+    RA.data = t(apply(data,1,function(X){
+      X/sum(X)
+    }))
+    
+    # Square root transformation
+    if(transform==T){
+      RA.data = sqrt(RA.data)
+    }
+    
+    # Dataframe for gamlss function
+    df = data.frame(cbind(RA.data), meta)
+    
+    # Feature names for gamlss function
+    Xs = colnames(RA.data)
+    
+   
+    ## Zero-inflated beta regression + Likelihood ratio test
+    p_vec = c() # Vector with p-values for each feature
+    for(i in Xs){
+      full.equation = paste0(i, " ~ ", paste0(c(Y,Z), collapse = " + "))
+      reduced.equation = paste0(i, " ~ ", paste0(c(Z), collapse = " + "))
+      
+      full.model = gamlss(formula = as.formula(full.equation), family=BEZI(sigma.link="identity"), trace=FALSE, control = gamlss.control(n.cyc = 100), data = df)
+      
+      reduced.model = gamlss(formula = as.formula(reduced.equation), family=BEZI(sigma.link="identity"), trace=FALSE, control = gamlss.control(n.cyc = 100), data = df)
+      
+      if(deviance(reduced.model) <= deviance(full.model)){
+        p.value = NA
+      }else{
+        p.value = LR.test(reduced.model, full.model, print = F)$p.val  
+      }
+      
+      p_vec <- c(p_vec, p.value)
+    }
+    return(p_vec)
+  }
 
 
